@@ -55,6 +55,7 @@
       border-radius: 8px;
       padding: 16px;
       margin-bottom: 16px;
+      scroll-margin-top: 20px;
     }
     .quiz-title {
       font-weight: bold;
@@ -101,6 +102,7 @@
       background: #e0e7ff;
       border-radius: 8px;
       text-align: center;
+      scroll-margin-top: 20px;
     }
     .score-badge {
       font-size: 2rem;
@@ -126,6 +128,47 @@
     .review-section {
       margin-top: 30px;
       text-align: left;
+    }
+    .summary-box {
+      margin-top: 15px;
+      padding: 12px;
+      background: #ffffff;
+      border-radius: 8px;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+    .jump-btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .jump-btn {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      cursor: pointer;
+      color: white;
+    }
+    .jump-btn.correct {
+      background-color: #10b981;
+    }
+    .jump-btn.wrong {
+      background-color: #ef4444;
+    }
+    .back-to-top-btn {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 6px 12px;
+      background-color: #6b7280;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      cursor: pointer;
     }
   </style>
 </head>
@@ -155,6 +198,17 @@
     <p><span id="res-player-name"></span> さんの得点は...</p>
     <div class="score-badge"><span id="score">0</span> / 100 点</div>
     <p id="result-message" style="margin-top:10px; font-weight:bold;"></p>
+
+    <div class="summary-box">
+      <div style="margin-bottom: 10px;">
+        <strong>⭕ 正解した問題:</strong>
+        <div id="correct-btn-group" class="jump-btn-group">なし</div>
+      </div>
+      <div>
+        <strong>❌ 間違えた問題:</strong>
+        <div id="wrong-btn-group" class="jump-btn-group">なし</div>
+      </div>
+    </div>
   </div>
 
   <div id="review-list" class="review-section"></div>
@@ -162,7 +216,7 @@
 
 <script>
 // ==========================================
-// 1. 設定部分（新しいWebhook URL）
+// 1. 設定部分（★153行目にWebhook URLが入っています）
 // ==========================================
 const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1555828518338953306/VToURYxrU64OHOzH0RisuDd0F_MyVhdX3gvBWE__jTHjKI0kKO86g0jUVbTCItZ03uJ5";
 
@@ -236,6 +290,22 @@ const quizListContainer = document.getElementById("quiz-list");
 const quizForm = document.getElementById("quiz-form");
 const reviewListContainer = document.getElementById("review-list");
 
+// 該当要素へスクロールジャンプする関数
+function scrollToQuiz(idx) {
+  const target = document.getElementById(`quiz-card-${idx}`);
+  if (target) {
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+// 採点結果一覧に戻る関数
+function scrollToResult() {
+  const target = document.getElementById("result-area");
+  if (target) {
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
 // 過去の回答データを表示する関数
 function renderReview(playerName, score, userAnswers) {
   document.getElementById("quiz-form-wrapper").style.display = "none";
@@ -251,12 +321,22 @@ function renderReview(playerName, score, userAnswers) {
 
   reviewListContainer.innerHTML = "<h3>▼ あなたの回答一覧と解説</h3>";
 
+  const correctBtns = [];
+  const wrongBtns = [];
+
   quizData.forEach((q, idx) => {
     const card = document.createElement("div");
     card.className = "quiz-card";
+    card.id = `quiz-card-${idx}`;
 
     const userAnsIdx = userAnswers[idx];
     let optionsHtml = "";
+
+    if (userAnsIdx === q.answer) {
+      correctBtns.push(`<button type="button" class="jump-btn correct" onclick="scrollToQuiz(${idx})">問${idx + 1}</button>`);
+    } else {
+      wrongBtns.push(`<button type="button" class="jump-btn wrong" onclick="scrollToQuiz(${idx})">問${idx + 1}</button>`);
+    }
 
     q.options.forEach((opt, oIdx) => {
       let optionClass = "option";
@@ -284,9 +364,17 @@ function renderReview(playerName, score, userAnswers) {
       <div class="quiz-title">${q.q}</div>
       ${optionsHtml}
       <div class="explanation" style="display:block;">${q.exp}</div>
+      <button type="button" class="back-to-top-btn" onclick="scrollToResult()">▲ 採点結果へ戻る</button>
     `;
     reviewListContainer.appendChild(card);
   });
+
+  // ボタン一覧の描画
+  document.getElementById("correct-btn-group").innerHTML = correctBtns.length > 0 ? correctBtns.join("") : "なし";
+  document.getElementById("wrong-btn-group").innerHTML = wrongBtns.length > 0 ? wrongBtns.join("") : "なし";
+
+  // ページ最上部へスクロール
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // 保存されている回答チェック
@@ -392,7 +480,7 @@ quizForm.addEventListener("submit", async (e) => {
     console.error("Discord送信例外エラー:", err);
   }
 
-  // ローカルに回答結果を保存して画面描画
+  // ローカルに回答結果を保存して画面描画（スクロール処理含む）
   const resultData = { playerName, score, userAnswers };
   localStorage.setItem("moeman_quiz_result", JSON.stringify(resultData));
   renderReview(playerName, score, userAnswers);
