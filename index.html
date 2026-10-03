@@ -63,7 +63,20 @@
     .option {
       display: block;
       margin: 8px 0;
-      cursor: pointer;
+      padding: 6px 10px;
+      border-radius: 6px;
+    }
+    .option.user-selected-wrong {
+      background-color: #fee2e2;
+      border: 1px solid #ef4444;
+      color: #991b1b;
+      font-weight: bold;
+    }
+    .option.correct-answer {
+      background-color: #d1fae5;
+      border: 1px solid #10b981;
+      color: #065f46;
+      font-weight: bold;
     }
     .btn-submit {
       width: 100%;
@@ -94,12 +107,15 @@
       font-weight: bold;
       color: #3730a3;
     }
-    .already-submitted {
+    .already-submitted-banner {
+      background-color: #fef2f2;
+      border: 1px solid #fca5a5;
+      color: #dc2626;
+      padding: 12px;
+      border-radius: 8px;
       text-align: center;
-      padding: 40px 20px;
-      font-size: 1.2rem;
-      color: #ef4444;
       font-weight: bold;
+      margin-bottom: 20px;
     }
     .explanation {
       margin-top: 8px;
@@ -107,12 +123,20 @@
       color: #059669;
       display: none;
     }
+    .review-section {
+      margin-top: 30px;
+      text-align: left;
+    }
   </style>
 </head>
 <body>
 
 <div class="container" id="main-container">
   <h1>⚔️ モーマンタイム クイズ ⚔️</h1>
+
+  <div id="already-banner" class="already-submitted-banner" style="display: none;">
+    ⚠️ あなたは回答済みです（お一人様1回まで）。<br>以下にあなたの回答と正解・解説を表示しています。
+  </div>
 
   <div id="quiz-form-wrapper">
     <div class="form-group">
@@ -132,6 +156,8 @@
     <div class="score-badge"><span id="score">0</span> / 100 点</div>
     <p id="result-message" style="margin-top:10px; font-weight:bold;"></p>
   </div>
+
+  <div id="review-list" class="review-section"></div>
 </div>
 
 <script>
@@ -185,7 +211,7 @@ const quizData = [
     exp: "解説：レベルの向上と破片を集めて行うランクアップ（星UP）が基本の強化要素です。"
   },
   {
-    q: "问8. 採集部隊をマップ上の資源地に派遣する際、意識すべきポイントは？",
+    q: "問8. 採集部隊をマップ上の資源地に派遣する際、意識すべきポイントは？",
     options: ["載量（持ち帰り可能量）の高い兵種を編成する", "1兵士だけで派遣して放置する", "一番遠い資源地だけを狙う"],
     answer: 0,
     exp: "解説：積載量の多い兵士を連れていくことで、一度にたくさんの資源を持ち帰ることができます。"
@@ -208,20 +234,75 @@ const quizData = [
 // ==========================================
 const quizListContainer = document.getElementById("quiz-list");
 const quizForm = document.getElementById("quiz-form");
+const reviewListContainer = document.getElementById("review-list");
 
-// 重複回答チェック（LocalStorage）
-if (localStorage.getItem("moeman_quiz_submitted")) {
-  document.getElementById("main-container").innerHTML = `
-    <div class="already-submitted">
-      ⚠️ お一人様1回までです。<br>すでにクイズに回答済みです！
-    </div>
-  `;
-} else {
-  // クイズの描画
+// 過去の回答データを表示する関数
+function renderReview(playerName, score, userAnswers) {
+  document.getElementById("quiz-form-wrapper").style.display = "none";
+  document.getElementById("res-player-name").innerText = playerName;
+  document.getElementById("score").innerText = score;
+
+  let msg = "";
+  if (score === 100) msg = "完璧！全問正解です！素晴らしい！🎉";
+  else if (score >= 70) msg = "高得点！同盟のエース級知識です！👍";
+  else msg = "お疲れ様でした！次回は満点を目指しましょう！💪";
+  document.getElementById("result-message").innerText = msg;
+  document.getElementById("result-area").style.display = "block";
+
+  reviewListContainer.innerHTML = "<h3>▼ あなたの回答一覧と解説</h3>";
+
   quizData.forEach((q, idx) => {
     const card = document.createElement("div");
     card.className = "quiz-card";
-    
+
+    const userAnsIdx = userAnswers[idx];
+    let optionsHtml = "";
+
+    q.options.forEach((opt, oIdx) => {
+      let optionClass = "option";
+      let badge = "";
+
+      if (oIdx === q.answer) {
+        optionClass += " correct-answer";
+        badge = " 【正解⭕】";
+      }
+      if (oIdx === userAnsIdx && userAnsIdx !== q.answer) {
+        optionClass += " user-selected-wrong";
+        badge = " 【あなたの回答❌】";
+      } else if (oIdx === userAnsIdx && userAnsIdx === q.answer) {
+        badge = " 【あなたの回答⭕】";
+      }
+
+      optionsHtml += `
+        <div class="${optionClass}">
+          ${opt}${badge}
+        </div>
+      `;
+    });
+
+    card.innerHTML = `
+      <div class="quiz-title">${q.q}</div>
+      ${optionsHtml}
+      <div class="explanation" style="display:block;">${q.exp}</div>
+    `;
+    reviewListContainer.appendChild(card);
+  });
+}
+
+// 保存されている回答チェック
+const savedResult = localStorage.getItem("moeman_quiz_result");
+
+if (savedResult) {
+  // 回答済みの場合はバナーを表示してハイライト画面を再現
+  document.getElementById("already-banner").style.display = "block";
+  const data = JSON.parse(savedResult);
+  renderReview(data.playerName, data.score, data.userAnswers);
+} else {
+  // 未回答の場合はクイズを表示
+  quizData.forEach((q, idx) => {
+    const card = document.createElement("div");
+    card.className = "quiz-card";
+
     let optionsHtml = "";
     q.options.forEach((opt, oIdx) => {
       optionsHtml += `
@@ -235,7 +316,6 @@ if (localStorage.getItem("moeman_quiz_submitted")) {
     card.innerHTML = `
       <div class="quiz-title">${q.q}</div>
       ${optionsHtml}
-      <div class="explanation" id="exp-${idx}">${q.exp}</div>
     `;
     quizListContainer.appendChild(card);
   });
@@ -244,19 +324,17 @@ if (localStorage.getItem("moeman_quiz_submitted")) {
 // フォーム送信時
 quizForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  
+
   const playerName = document.getElementById("player-name").value.trim();
   if (!playerName) {
     alert("首長名を入力してください！");
     return;
   }
 
-  // 送信ボタンを無効化
   const submitBtn = document.getElementById("submit-btn");
   submitBtn.disabled = true;
   submitBtn.innerText = "送信中...";
 
-  // 採点処理
   let score = 0;
   const userAnswers = [];
 
@@ -266,32 +344,19 @@ quizForm.addEventListener("submit", async (e) => {
     userAnswers.push(val);
 
     if (val === q.answer) {
-      score += 10; // 10問で100点満点
+      score += 10;
     }
-    // 解説を表示
-    document.getElementById(`exp-${idx}`).style.display = "block";
   });
 
-  // 結果表示
-  document.getElementById("res-player-name").innerText = playerName;
-  document.getElementById("score").innerText = score;
-  
-  let msg = "";
-  if (score === 100) msg = "完璧！全問正解です！素晴らしい！🎉";
-  else if (score >= 70) msg = "高得点！同盟のエース級知識です！👍";
-  else msg = "お疲れ様でした！次回は満点を目指しましょう！💪";
-  document.getElementById("result-message").innerText = msg;
+  // ローカルに回答結果を保存
+  const resultData = { playerName, score, userAnswers };
+  localStorage.setItem("moeman_quiz_result", JSON.stringify(resultData));
 
-  document.getElementById("quiz-form-wrapper").style.display = "none";
-  document.getElementById("result-area").style.display = "block";
-
-  // ローカルストレージに送信済みフラグを保存（重複防止）
-  localStorage.setItem("moeman_quiz_submitted", "true");
+  // 結果とハイライト描画
+  renderReview(playerName, score, userAnswers);
 
   // Discordへ送信
   if (DISCORD_WEBHOOK_URL) {
-    
-    // 不正解だった問題のリストを作成
     let wrongDetails = "";
     quizData.forEach((q, idx) => {
       const userAnsIdx = userAnswers[idx];
@@ -305,6 +370,8 @@ quizForm.addEventListener("submit", async (e) => {
     if (wrongDetails === "") {
       wrongDetails = "🎉 なし（全問正解！）";
     }
+
+    let msg = score === 100 ? "完璧！全問正解です！" : (score >= 70 ? "高得点！" : "お疲れ様でした！");
 
     const payload = {
       username: "クイズ回答通知Bot",
