@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>モーマンタイム クイズ</title>
+  <style>
+    :root {
+      --primary-color: #4f46e5;
+      --bg-color: #f3f4f6;
+      --card-bg: #ffffff;
+      --text-color: #1f2937;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      line-height: 1.6;
+      margin: 0;
+      padding: 20px 10px;
+    }
+    .container {
+      max-width: 650px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      font-size: 1.5rem;
+      text-align: center;
+      color: var(--primary-color);
+      margin-bottom: 20px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      font-weight: bold;
+      display: block;
+      margin-bottom: 8px;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      box-sizing: border-box;
+      font-size: 1rem;
+    }
+    .quiz-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .quiz-title {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .option {
+      display: block;
+      margin: 8px 0;
+      cursor: pointer;
+    }
+    .btn-submit {
+      width: 100%;
+      background-color: var(--primary-color);
+      color: white;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+    .btn-submit:disabled {
+      background-color: #9ca3af;
+      cursor: not-allowed;
+    }
+    #result-area {
+      display: none;
+      margin-top: 20px;
+      padding: 20px;
+      background: #e0e7ff;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .score-badge {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #3730a3;
+    }
+    .already-submitted {
+      text-align: center;
+      padding: 40px 20px;
+      font-size: 1.2rem;
+      color: #ef4444;
+      font-weight: bold;
+    }
+    .explanation {
+      margin-top: 8px;
+      font-size: 0.9rem;
+      color: #059669;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container" id="main-container">
+  <h1>⚔️ モーマンタイム 同盟知識クイズ ⚔️</h1>
+
+  <div id="quiz-form-wrapper">
+    <div class="form-group">
+      <label for="player-name">首長名（ゲーム内のお名前）<span style="color:red;">*</span></label>
+      <input type="text" id="player-name" placeholder="例：ハチワレ" required>
+    </div>
+
+    <form id="quiz-form">
+      <div id="quiz-list"></div>
+      <button type="submit" class="btn-submit" id="submit-btn">回答を送信して結果を見る</button>
+    </form>
+  </div>
+
+  <div id="result-area">
+    <h2>採点結果</h2>
+    <p><span id="res-player-name"></span> さんの得点は...</p>
+    <div class="score-badge"><span id="score">0</span> / 100 点</div>
+    <p id="result-message" style="margin-top:10px; font-weight:bold;"></p>
+  </div>
+</div>
+
+<script>
+// ==========================================
+// 1. 設定部分
+// ==========================================
+// ★ここにDiscordのWebhook URLを貼り付けてください★
+const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1555812173689786398/Ct8IBCcwq6krwylOPFVhmgNUwPDabmlhAc63bxkKJgxLgkD0Dn5dD0bSGmkvQM93eq1A";
+
+// クイズデータ（全10問・3択）
+const quizData = [
+  {
+    q: "問1. モーマンタイムのパブリッシャー（運営会社）はどこでしょう？",
+    options: ["37Games", "NetEase Games", "Yostar"],
+    answer: 0,
+    exp: "解説：モーマンタイムは37Gamesから配信されています。"
+  },
+  {
+    q: "問2. 領主の「城郭」レベルを上げる際、前提としてレベルアップが必要になりやすい施設は？",
+    options: ["農場", "城壁", "鍛冶屋"],
+    answer: 1,
+    exp: "解説：多くの場合、城郭（主城）の昇級には城壁のレベルアップが必須条件となります。"
+  },
+  {
+    q: "問3. 同盟に入る最大のメリットとして「正しくないもの」はどれ？",
+    options: ["建築・研究のヘルプ加速", "同盟ギフトの受取り", "無条件で全プレイヤーを攻撃可能になる"],
+    answer: 2,
+    exp: "解説：同盟加入は相互扶助や同盟イベント参加が主目的であり、無条件の攻撃権を得るわけではありません。"
+  },
+  {
+    q: "問4. 部隊を遠征（行軍）させるとき、行軍速度に最も影響を与える要素は？",
+    options: ["兵種や英雄の行軍バフ・スキル", "所持しているコインの量", "同盟のチャット発言数"],
+    answer: 0,
+    exp: "解説：兵種の特性や英雄の行軍加速スキル、研究バフが行軍速度に影響します。"
+  },
+  {
+    q: "問5. デイリー任務（日課）をこなす主なメリットは？",
+    options: ["活躍度宝箱からダイヤや育成素材を獲得できる", "プレイヤー名が自動的に変更される", "城の見た目がランダムで変わる"],
+    answer: 0,
+    exp: "解説：毎日活躍度を貯めることで、ダイヤや貴重な強化素材を入手できます。"
+  },
+  {
+    q: "問6. 同盟イベント「同盟対決」などでポイントを効率よく稼ぐ基本は？",
+    options: ["イベントテーマ（日替わり指定のお題）に合わせてアイテムを使う", "何もせず放置する", "適当に兵士を解雇する"],
+    answer: 0,
+    exp: "解説：日ごとに指定されるテーマ（加速消費、採集、英雄育成など）に合わせて行動するのが鉄則です。"
+  },
+  {
+    q: "問7. 英雄の育成において、ステータスを大幅に伸ばすために重要な要素は？",
+    options: ["レベルアップと破片（欠片）によるランクアップ", "名前の変更", "アバター枠の付け替え"],
+    answer: 0,
+    exp: "解説：レベルの向上と破片を集めて行うランクアップ（星UP）が基本の強化要素です。"
+  },
+  {
+    q: "問8. 採集部隊をマップ上の資源地に派遣する際、意識すべきポイントは？",
+    options: ["載量（持ち帰り可能量）の高い兵種を編成する", "1兵士だけで派遣して放置する", "一番遠い資源地だけを狙う"],
+    answer: 0,
+    exp: "解説：積載量の多い兵士を連れていくことで、一度にたくさんの資源を持ち帰ることができます。"
+  },
+  {
+    q: "問9. スタミナ（体力）の効率的な使い道として最適なのは？",
+    options: ["野外の魔物・野盗の討伐や集結攻撃", "自分の城を攻撃し続ける", "マップの端までただ移動する"],
+    answer: 0,
+    exp: "解説：スタミナはマップ上の敵の討伐や集結イベントに使用して素材を集めるのが効率的です。"
+  },
+  {
+    q: "問10. 同盟メンバーと協力して強力な敵を倒すシステムの名称は？",
+    options: ["集結（ラリー）", "タイマン", "ソロアタック"],
+    answer: 0,
+    exp: "解説：仲間を募って同時に攻撃を仕掛ける「集結」を活用するのが高難易度攻略の鍵です。"
+  }
+];
+
+// ==========================================
+// 2. 処理部分
+// ==========================================
+const quizListContainer = document.getElementById("quiz-list");
+const quizForm = document.getElementById("quiz-form");
+
+// 重複回答チェック（LocalStorage）
+if (localStorage.getItem("moeman_quiz_submitted")) {
+  document.getElementById("main-container").innerHTML = `
+    <div class="already-submitted">
+      ⚠️ お一人様1回までです。<br>すでにクイズに回答済みです！
+    </div>
+  `;
+} else {
+  // クイズの描画
+  quizData.forEach((q, idx) => {
+    const card = document.createElement("div");
+    card.className = "quiz-card";
+    
+    let optionsHtml = "";
+    q.options.forEach((opt, oIdx) => {
+      optionsHtml += `
+        <label class="option">
+          <input type="radio" name="q${idx}" value="${oIdx}" required>
+          ${opt}
+        </label>
+      `;
+    });
+
+    card.innerHTML = `
+      <div class="quiz-title">${q.q}</div>
+      ${optionsHtml}
+      <div class="explanation" id="exp-${idx}">${q.exp}</div>
+    `;
+    quizListContainer.appendChild(card);
+  });
+}
+
+// フォーム送信時
+quizForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  
+  const playerName = document.getElementById("player-name").value.trim();
+  if (!playerName) {
+    alert("領主名を入力してください！");
+    return;
+  }
+
+  // 送信ボタンを無効化
+  const submitBtn = document.getElementById("submit-btn");
+  submitBtn.disabled = true;
+  submitBtn.innerText = "送信中...";
+
+  // 採点処理
+  let score = 0;
+  const userAnswers = [];
+
+  quizData.forEach((q, idx) => {
+    const selected = document.querySelector(`input[name="q${idx}"]:checked`);
+    const val = selected ? parseInt(selected.value) : -1;
+    userAnswers.push(val);
+
+    if (val === q.answer) {
+      score += 10; // 10問で100点満点
+    }
+    // 解説を表示
+    document.getElementById(`exp-${idx}`).style.display = "block";
+  });
+
+  // 結果表示
+  document.getElementById("res-player-name").innerText = playerName;
+  document.getElementById("score").innerText = score;
+  
+  let msg = "";
+  if (score === 100) msg = "完璧！全問正解です！素晴らしい！🎉";
+  else if (score >= 70) msg = "高得点！同盟のエース級知識です！👍";
+  else msg = "お疲れ様でした！次回は満点を目指しましょう！💪";
+  document.getElementById("result-message").innerText = msg;
+
+  document.getElementById("quiz-form-wrapper").style.display = "none";
+  document.getElementById("result-area").style.display = "block";
+
+  // ローカルストレージに送信済みフラグを保存（重複防止）
+  localStorage.setItem("moeman_quiz_submitted", "true");
+
+  // Discordへ送信
+  if (DISCORD_WEBHOOK_URL && DISCORD_WEBHOOK_URL !== "YOUR_DISCORD_WEBHOOK_URL_HERE") {
+    const payload = {
+      username: "クイズ回答通知Bot",
+      embeds: [{
+        title: "📝 クイズの回答が届きました！",
+        color: 0x4f46e5,
+        fields: [
+          { name: "領主名", value: playerName, inline: true },
+          { name: "得点", value: `${score} / 100点`, inline: true },
+          { name: "評価", value: msg }
+        ],
+        timestamp: new Date().toISOString()
+      }]
+    };
+
+    try {
+      await fetch(DISCORD_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    } catch (err) {
+      console.error("Discord送信エラー:", err);
+    }
+  }
+});
+</script>
+
+</body>
+</html>
