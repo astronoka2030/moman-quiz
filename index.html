@@ -112,7 +112,7 @@
 <body>
 
 <div class="container" id="main-container">
-  <h1>⚔️ モーマンタイム 同盟知識クイズ ⚔️</h1>
+  <h1>⚔️ モーマンタイム クイズ ⚔️</h1>
 
   <div id="quiz-form-wrapper">
     <div class="form-group">
@@ -138,7 +138,6 @@
 // ==========================================
 // 1. 設定部分
 // ==========================================
-// ★ここにDiscordのWebhook URLを貼り付けてください★
 const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1555812173689786398/Ct8IBCcwq6krwylOPFVhmgNUwPDabmlhAc63bxkKJgxLgkD0Dn5dD0bSGmkvQM93eq1A";
 
 // クイズデータ（全10問・3択）
@@ -186,7 +185,7 @@ const quizData = [
     exp: "解説：レベルの向上と破片を集めて行うランクアップ（星UP）が基本の強化要素です。"
   },
   {
-    q: "問8. 採集部隊をマップ上の資源地に派遣する際、意識すべきポイントは？",
+    q: "问8. 採集部隊をマップ上の資源地に派遣する際、意識すべきポイントは？",
     options: ["載量（持ち帰り可能量）の高い兵種を編成する", "1兵士だけで派遣して放置する", "一番遠い資源地だけを狙う"],
     answer: 0,
     exp: "解説：積載量の多い兵士を連れていくことで、一度にたくさんの資源を持ち帰ることができます。"
@@ -204,7 +203,6 @@ const quizData = [
     exp: "解説：仲間を募って同時に攻撃を仕掛ける「集結」を活用するのが高難易度攻略の鍵です。"
   }
 ];
-
 // ==========================================
 // 2. 処理部分
 // ==========================================
@@ -249,7 +247,7 @@ quizForm.addEventListener("submit", async (e) => {
   
   const playerName = document.getElementById("player-name").value.trim();
   if (!playerName) {
-    alert("領主名を入力してください！");
+    alert("首長名を入力してください！");
     return;
   }
 
@@ -291,16 +289,33 @@ quizForm.addEventListener("submit", async (e) => {
   localStorage.setItem("moeman_quiz_submitted", "true");
 
   // Discordへ送信
-  if (DISCORD_WEBHOOK_URL && DISCORD_WEBHOOK_URL !== "YOUR_DISCORD_WEBHOOK_URL_HERE") {
+  if (DISCORD_WEBHOOK_URL) {
+    
+    // 不正解だった問題のリストを作成
+    let wrongDetails = "";
+    quizData.forEach((q, idx) => {
+      const userAnsIdx = userAnswers[idx];
+      if (userAnsIdx !== q.answer) {
+        const userChoice = userAnsIdx >= 0 ? q.options[userAnsIdx] : "未回答";
+        const correctChoice = q.options[q.answer];
+        wrongDetails += `・**問${idx + 1}**: 選択「${userChoice}」❌（正解: ${correctChoice}）\n`;
+      }
+    });
+
+    if (wrongDetails === "") {
+      wrongDetails = "🎉 なし（全問正解！）";
+    }
+
     const payload = {
       username: "クイズ回答通知Bot",
       embeds: [{
         title: "📝 クイズの回答が届きました！",
-        color: 0x4f46e5,
+        color: score === 100 ? 0x10b981 : 0xef4444,
         fields: [
-          { name: "領主名", value: playerName, inline: true },
+          { name: "首長名", value: playerName, inline: true },
           { name: "得点", value: `${score} / 100点`, inline: true },
-          { name: "評価", value: msg }
+          { name: "評価", value: msg },
+          { name: "❌ 不正解・ミスした問題", value: wrongDetails }
         ],
         timestamp: new Date().toISOString()
       }]
