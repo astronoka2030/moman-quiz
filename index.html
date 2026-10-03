@@ -162,9 +162,9 @@
 
 <script>
 // ==========================================
-// 1. 設定部分
+// 1. 設定部分（新しいWebhook URL）
 // ==========================================
-const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1555812173689786398/Ct8IBCcwq6krwylOPFVhmgNUwPDabmlhAc63bxkKJgxLgkD0Dn5dD0bSGmkvQM93eq1A";
+const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1555828518338953306/VToURYxrU64OHOzH0RisuDd0F_MyVhdX3gvBWE__jTHjKI0kKO86g0jUVbTCItZ03uJ5";
 
 // クイズデータ（全10問・3択）
 const quizData = [
@@ -293,12 +293,10 @@ function renderReview(playerName, score, userAnswers) {
 const savedResult = localStorage.getItem("moeman_quiz_result");
 
 if (savedResult) {
-  // 回答済みの場合はバナーを表示してハイライト画面を再現
   document.getElementById("already-banner").style.display = "block";
   const data = JSON.parse(savedResult);
   renderReview(data.playerName, data.score, data.userAnswers);
 } else {
-  // 未回答の場合はクイズを表示
   quizData.forEach((q, idx) => {
     const card = document.createElement("div");
     card.className = "quiz-card";
@@ -348,56 +346,56 @@ quizForm.addEventListener("submit", async (e) => {
     }
   });
 
-  // ローカルに回答結果を保存
+  // 不正解だった問題のリストを作成
+  let wrongDetails = "";
+  quizData.forEach((q, idx) => {
+    const userAnsIdx = userAnswers[idx];
+    if (userAnsIdx !== q.answer) {
+      const userChoice = userAnsIdx >= 0 ? q.options[userAnsIdx] : "未回答";
+      const correctChoice = q.options[q.answer];
+      wrongDetails += `・**問${idx + 1}**: 選択「${userChoice}」❌（正解: ${correctChoice}）\n`;
+    }
+  });
+
+  if (wrongDetails === "") {
+    wrongDetails = "🎉 なし（全問正解！）";
+  }
+
+  let evalMsg = score === 100 ? "完璧！全問正解です！" : (score >= 70 ? "高得点！" : "お疲れ様でした！");
+
+  const payload = {
+    username: "クイズ回答通知Bot",
+    embeds: [{
+      title: "📝 クイズの回答が届きました！",
+      color: score === 100 ? 0x10b981 : 0xef4444,
+      fields: [
+        { name: "首長名", value: playerName, inline: true },
+        { name: "得点", value: `${score} / 100点`, inline: true },
+        { name: "評価", value: evalMsg },
+        { name: "❌ 不正解・ミスした問題", value: wrongDetails }
+      ],
+      timestamp: new Date().toISOString()
+    }]
+  };
+
+  // Discord送信実行
+  try {
+    const res = await fetch(DISCORD_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      console.error("Discord送信応答エラー:", res.status);
+    }
+  } catch (err) {
+    console.error("Discord送信例外エラー:", err);
+  }
+
+  // ローカルに回答結果を保存して画面描画
   const resultData = { playerName, score, userAnswers };
   localStorage.setItem("moeman_quiz_result", JSON.stringify(resultData));
-
-  // 結果とハイライト描画
   renderReview(playerName, score, userAnswers);
-
-  // Discordへ送信
-  if (DISCORD_WEBHOOK_URL) {
-    let wrongDetails = "";
-    quizData.forEach((q, idx) => {
-      const userAnsIdx = userAnswers[idx];
-      if (userAnsIdx !== q.answer) {
-        const userChoice = userAnsIdx >= 0 ? q.options[userAnsIdx] : "未回答";
-        const correctChoice = q.options[q.answer];
-        wrongDetails += `・**問${idx + 1}**: 選択「${userChoice}」❌（正解: ${correctChoice}）\n`;
-      }
-    });
-
-    if (wrongDetails === "") {
-      wrongDetails = "🎉 なし（全問正解！）";
-    }
-
-    let msg = score === 100 ? "完璧！全問正解です！" : (score >= 70 ? "高得点！" : "お疲れ様でした！");
-
-    const payload = {
-      username: "クイズ回答通知Bot",
-      embeds: [{
-        title: "📝 クイズの回答が届きました！",
-        color: score === 100 ? 0x10b981 : 0xef4444,
-        fields: [
-          { name: "首長名", value: playerName, inline: true },
-          { name: "得点", value: `${score} / 100点`, inline: true },
-          { name: "評価", value: msg },
-          { name: "❌ 不正解・ミスした問題", value: wrongDetails }
-        ],
-        timestamp: new Date().toISOString()
-      }]
-    };
-
-    try {
-      await fetch(DISCORD_WEBHOOK_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-    } catch (err) {
-      console.error("Discord送信エラー:", err);
-    }
-  }
 });
 </script>
 
